@@ -1,26 +1,21 @@
-import pandas as pd
-import os
-
-def load_apartments(path="data/apartments.csv") -> pd.DataFrame:
-    if os.path.exists(path):
-        return pd.read_csv(path)
-    return pd.DataFrame(columns=["slug", "nom"])
-
 import os
 import pandas as pd
 import streamlit as st
 
 APARTMENTS_PATH = "data/apartments.csv"
 
+# Charger les appartements existants
 def load_apartments() -> pd.DataFrame:
     if os.path.exists(APARTMENTS_PATH):
         return pd.read_csv(APARTMENTS_PATH)
     else:
         return pd.DataFrame(columns=["slug", "nom"])
 
+# Sauvegarder les modifications
 def save_apartments(df: pd.DataFrame):
     df.to_csv(APARTMENTS_PATH, index=False)
 
+# Interface de gestion des appartements
 def gestion_appartements_ui():
     st.header("🏢 Gestion des appartements")
     df = load_apartments()
@@ -34,12 +29,12 @@ def gestion_appartements_ui():
     # Formulaire d'ajout ou modification
     with st.form("ajout_appart"):
         st.subheader("➕ Ajouter / Modifier un appartement")
-        slug = st.text_input("Identifiant (slug)")
+        slug = st.text_input("Identifiant (slug)", max_chars=50)
         nom = st.text_input("Nom de l'appartement")
 
         submit = st.form_submit_button("Enregistrer")
         if submit:
-            if slug == "" or nom == "":
+            if slug.strip() == "" or nom.strip() == "":
                 st.warning("Veuillez remplir tous les champs.")
             else:
                 if slug in df["slug"].values:
@@ -59,5 +54,3 @@ def gestion_appartements_ui():
             df = df[df["slug"] != slug_to_delete]
             save_apartments(df)
             st.success(f"Appartement `{slug_to_delete}` supprimé.")
-
-
