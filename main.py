@@ -1,11 +1,6 @@
-
-
-
-
-
 import streamlit as st
 from utils.style import apply_style
-from utils.auth import load_apartments
+from utils.auth import load_apartments, gestion_appartements_ui
 from utils.reservations import (
     load_reservations,
     afficher_reservations,
@@ -13,89 +8,66 @@ from utils.reservations import (
     modifier_reservation_ui,
     afficher_calendrier_google,
     afficher_statistiques
-from utils.auth import gestion_appartements_ui
-
 )
 from analyse import afficher_analyse_financiere
 
+# Configuration de la page
 st.set_page_config(page_title="GestionLoc", layout="wide")
 apply_style()
 
 st.markdown("# 🏠 GestionLoc")
 st.markdown("### Liste des appartements disponibles :")
 
+# Chargement des appartements
 df_apts = load_apartments()
+
 if df_apts.empty:
-    st.error("Aucun appartement trouvé dans apartments.csv.")
-    st.stop()
+    st.warning("Aucun appartement trouvé. Veuillez en ajouter dans l'onglet 🏢 Appartements.")
+    slug = None
+else:
+    slugs = df_apts["slug"].tolist()
+    apt_dict = df_apts.set_index("slug")["nom"].to_dict()
 
-slugs = df_apts["slug"].tolist()
-apt_dict = df_apts.set_index("slug")["nom"].to_dict()
+    slug = st.selectbox("Choisissez un appartement", slugs)
+    apt_nom = apt_dict.get(slug, slug)
 
-slug = st.selectbox("Choisissez un appartement", slugs)
-apt_nom = apt_dict.get(slug, slug)
-st.markdown(f"**Appartement sélectionné :** `{apt_nom}`")
+    st.markdown(f"**Appartement sélectionné :** `{apt_nom}`")
 
-onglet = st.sidebar.radio("Navigation", [
-    "📋 Réservations",
-    "➕ Ajouter",
-    "✏️ Modifier",
-    "📅 Calendrier",
-    "📈 Statistiques",
-    "💹 Analyse financière"
-])
-
-if onglet == "📋 Réservations":
-    afficher_reservations(slug)
-
-elif onglet == "➕ Ajouter":
-    ajouter_reservation_ui(slug)
-
-elif onglet == "✏️ Modifier":
-    modifier_reservation_ui(slug)
-
-elif onglet == "📅 Calendrier":
-    afficher_calendrier_google(slug)
-
-elif onglet == "📈 Statistiques":
-    afficher_statistiques(slug)
-
-elif onglet == "💹 Analyse financière":
-    afficher_analyse_financiere(slug)
-
-elif onglet == "🏢 Appartements":
-    gestion_appartements_ui()
-
-
-from utils.auth import gestion_appartements_ui  # importer la nouvelle fonction
-
-# Onglet Navigation
+# Navigation par onglet
 onglet = st.sidebar.radio("Navigation", [
     "📋 Réservations",
     "➕ Ajouter",
     "✏️ Modifier / Supprimer",
     "📅 Calendrier",
     "📈 Statistiques",
-    "🏢 Appartements"  # <== nouveau
+    "💼 Analyse Financière",
+    "🏢 Appartements"
 ])
 
-# Affichage des pages
+# Affichage des écrans selon l’onglet sélectionné
 if onglet == "📋 Réservations":
-    afficher_reservations(slug)
+    if slug:
+        afficher_reservations(slug)
 
 elif onglet == "➕ Ajouter":
-    ajouter_reservation_ui(slug)
+    if slug:
+        ajouter_reservation_ui(slug)
 
 elif onglet == "✏️ Modifier / Supprimer":
-    modifier_reservation_ui(slug)
+    if slug:
+        modifier_reservation_ui(slug)
 
 elif onglet == "📅 Calendrier":
-    afficher_calendrier_google(slug)
+    if slug:
+        afficher_calendrier_google(slug)
 
 elif onglet == "📈 Statistiques":
-    afficher_analyse_financiere(slug)  # ou afficher_statistiques(slug)
+    if slug:
+        afficher_statistiques(slug)
+
+elif onglet == "💼 Analyse Financière":
+    if slug:
+        afficher_analyse_financiere(slug)
 
 elif onglet == "🏢 Appartements":
     gestion_appartements_ui()
-
-
