@@ -1,12 +1,13 @@
 import streamlit as st
+
+from utils.style import apply_style
+from utils.auth import load_apartments
 from utils.reservations import (
-    load_reservations,
     afficher_reservations,
     ajouter_reservation_ui,
     modifier_reservation_ui,
     afficher_calendrier_google,
-    afficher_statistiques,
-    afficher_analyse_financiere,
+    afficher_statistiques
 )
 
 # ========================
@@ -18,31 +19,32 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("🏠 GestionLoc")
+apply_style()
 
 # ========================
-# CHOIX APPARTEMENT
+# TITRE
 # ========================
 
-st.subheader("Liste des appartements disponibles")
+st.markdown("# 🏠 GestionLoc")
+st.markdown("### Liste des appartements disponibles")
 
-# 👉 ici on liste les CSV présents dans /data
-import os
+# ========================
+# APPARTEMENTS
+# ========================
 
-DATA_DIR = "data"
-slugs = []
+df_apts = load_apartments()
 
-if os.path.exists(DATA_DIR):
-    for f in os.listdir(DATA_DIR):
-        if f.startswith("reservations_") and f.endswith(".csv"):
-            slugs.append(f.replace("reservations_", "").replace(".csv", ""))
-
-if not slugs:
-    st.warning("Aucun appartement trouvé (aucun fichier reservations_*.csv)")
+if df_apts.empty:
+    st.warning("Aucun appartement trouvé. Ajoutez-en un dans le menu Appartements.")
     st.stop()
 
+slugs = df_apts["slug"].tolist()
+apt_dict = df_apts.set_index("slug")["nom"].to_dict()
+
 slug = st.selectbox("Choisissez un appartement", slugs)
-st.markdown(f"**Appartement sélectionné :** `{slug}`")
+apt_nom = apt_dict.get(slug, slug)
+
+st.markdown(f"**Appartement sélectionné :** `{apt_nom}`")
 
 # ========================
 # NAVIGATION
@@ -56,12 +58,11 @@ onglet = st.sidebar.radio(
         "✏️ Modifier / Supprimer",
         "📅 Calendrier",
         "📈 Statistiques",
-        "💼 Analyse Financière",
     ]
 )
 
 # ========================
-# AFFICHAGE
+# CONTENU
 # ========================
 
 if onglet == "📋 Réservations":
@@ -78,6 +79,3 @@ elif onglet == "📅 Calendrier":
 
 elif onglet == "📈 Statistiques":
     afficher_statistiques(slug)
-
-elif onglet == "💼 Analyse Financière":
-    afficher_analyse_financiere(slug)
