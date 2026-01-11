@@ -1,85 +1,233 @@
-def modifier_reservation_ui(slug: str):
-    st.subheader("✏️ Modifier / Supprimer une réservation")
+import os
+import pandas as pd
+import streamlit as st
+import plotly.express as px
+from datetime import datetime
+from io import BytesIO
 
+# ========================
+# FICHIERS
+# ========================
+
+def reservations_path(slug: str) -> str:
+    return f"data/reservations_{slug}.csv"
+
+
+def load_reservations(slug: str) -> pd.DataFrame:
+    path = reservations_path(slug)
+    if not os.path.exists(path):
+        return pd.DataFrame()
+
+    df = pd.read_csv(path)
+
+    # Sécurisation colonnes
+    for col in ["nom_client", "plateforme", "date_arrivee", "date_depart"]:
+        if col not in df.columns:
+            df[col] = ""
+
+    for col in ["nuitees", "prix_brut", "prix_net", "commissions"]:
+        if col not in df.columns:
+            df[col] = 0.0
+
+    if "paye" not in df.columns:
+        df["paye"] = False
+
+    return df
+
+
+def save_reservations(slug: str, df: pd.DataFrame):
+    os.makedirs("data", exist_ok=True)
+    df.to_csv(reservations_path(slug), index=False)
+
+
+# ========================
+# AFFICHAGE
+# ========================
+
+def afficher_reservations(slug: str):
+    st.subheader("📋 Réservations")
     df = load_reservations(slug)
 
     if df.empty:
         st.info("Aucune réservation.")
         return
 
-    # Sécurisation des colonnes
-    nom_col = "nom_client" if "nom_client" in df.columns else df.columns[0]
-    date_col = "date_arrivee" if "date_arrivee" in df.columns else None
+    st.dataframe(df, use_container_width=True)
 
-    # Création des libellés lisibles
-    labels = []
-    for i, row in df.iterrows():
-        nom = str(row.get(nom_col, "Client"))
-        date = str(row.get(date_col, "")) if date_col else ""
-        labels.append(f"{nom} – {date}")
+
+# ========================
+# AJOUT
+# ========================
+
+def ajouter_reservation_ui(slug: str):
+    st.subheader("➕ Ajouter une réservation")
+
+    with st.form("ajout_reservation"):
+        nom = st.text_input("Nom client")
+        plateforme = st.selectbox("Plateforme", ["Booking", "Airbnb", "Direct", "Autre"])
+        date_arrivee = st.date_input("Date d'arrivée")
+        date_depart = st.date_input("Date de départ")
+        prix_brut = st.number_input("Prix brut", min_value=0.0)
+        prix_net = st.number_input("Prix net", min_value=0.0)
+        paye = st.checkbox("Payé")
+
+        submit = st.form_submit_button("Ajouter")
+
+    if submit:
+        nuitees = max((date_depart - date_arrivee).days, 0)
+
+        df = load_reservations(slug)
+        df = pd.concat(
+            [
+                df,
+                pd.DataFrame([{
+                    "nom_client": nom,
+                    "plateforme": plateforme,
+                    "date_arrivee": date_arrivee.strftime("%d/%m/%Y"),
+                    "date_depart": date_depart.strftime("%d/%m/%Y"),
+                    "nuitees": nuitees,
+                    "prix_brut": prix_brut,
+                    "prix_net": prix_net,
+                    "commissions": prix_brut - prix_net,
+                    "paye": paye
+                }])
+            ],
+            ignore_index=True
+        )
+
+        save_reservations(slug, df)
+        st.success("Réservation ajoutée ✅")
+        st.rerun()
+
+
+# ========================
+# MODIFIER / SUPPRIMER
+# ========================
+
+def modifier_reservation_ui(slug: str):
+    st.subheader("✏️ Modifier / Supprimer")
+    df = load_reservations(slug)
+
+    if df.empty:
+        st.info("Aucune réservation.")
+        return
+
+    options = df.index.tolist()
 
     idx = st.selectbox(
         "Sélectionner une réservation",
-        options=df.index.tolist(),
-        format_func=lambda i: labels[df.index.tolist().index(i)]
+        options,
+        format_func=lambda i: f"{df.at[i, 'nom_client']} – {df.at[i, 'date_arrivee']}"
     )
 
     row = df.loc[idx]
 
-    with st.form("form_modifier"):
-        st.markdown("### 🧾 Informations client")
-
-        nom = st.text_input("Nom du client", value=str(row.get("nom_client", "")))
-        plateforme = st.text_input("Plateforme", value=str(row.get("plateforme", "")))
-        telephone = st.text_input("Téléphone", value=str(row.get("telephone", "")))
-
-        st.markdown("### 📅 Séjour")
-
-        date_arrivee = st.text_input(
-            "Date d’arrivée",
-            value=str(row.get("date_arrivee", ""))
+    with st.form("modifier"):
+        nom = st.text_input("Nom", row["nom_client"])
+        plateforme = st.selectbox(
+            "Plateforme",
+            ["Booking", "Airbnb", "Direct", "Autre"],
+            index=["Booking", "Airbnb", "Direct", "Autre"].index(row["plateforme"])
         )
-        date_depart = st.text_input(
-            "Date de départ",
-            value=str(row.get("date_depart", ""))
-        )
+        prix_brut = st.number_input("Prix brut", value=float(row["prix_brut"]))
+        prix_net = st.number_input("Prix net", value=float(row["prix_net"]))
+        paye = st.checkbox("Payé", value=bool(row["paye"]))
 
-        st.markdown("### 💰 Finances")
-
-        prix_brut = st.number_input(
-            "Prix brut",
-            value=float(row.get("prix_brut", 0.0))
-        )
-        prix_net = st.number_input(
-            "Prix net",
-            value=float(row.get("prix_net", 0.0))
-        )
-
-        paye = st.checkbox(
-            "Payé",
-            value=bool(row.get("paye", False))
-        )
-
-        col1, col2 = st.columns(2)
-        save_btn = col1.form_submit_button("💾 Enregistrer")
-        delete_btn = col2.form_submit_button("🗑️ Supprimer")
+        save_btn = st.form_submit_button("💾 Enregistrer")
+        delete_btn = st.form_submit_button("🗑️ Supprimer")
 
     if save_btn:
-        df.loc[idx, "nom_client"] = nom
-        df.loc[idx, "plateforme"] = plateforme
-        df.loc[idx, "telephone"] = telephone
-        df.loc[idx, "date_arrivee"] = date_arrivee
-        df.loc[idx, "date_depart"] = date_depart
-        df.loc[idx, "prix_brut"] = prix_brut
-        df.loc[idx, "prix_net"] = prix_net
-        df.loc[idx, "paye"] = paye
-
+        df.loc[idx, ["nom_client", "plateforme", "prix_brut", "prix_net", "paye"]] = [
+            nom, plateforme, prix_brut, prix_net, paye
+        ]
         save_reservations(slug, df)
-        st.success("✅ Réservation modifiée")
+        st.success("Réservation modifiée")
         st.rerun()
 
     if delete_btn:
-        df = df.drop(index=idx).reset_index(drop=True)
+        df = df.drop(idx).reset_index(drop=True)
         save_reservations(slug, df)
-        st.success("🗑️ Réservation supprimée")
+        st.success("Réservation supprimée")
         st.rerun()
+
+
+# ========================
+# CALENDRIER (simple)
+# ========================
+
+def afficher_calendrier_google(slug: str):
+    st.subheader("📅 Calendrier")
+    df = load_reservations(slug)
+
+    if df.empty:
+        st.info("Aucune réservation.")
+        return
+
+    df["date_arrivee"] = pd.to_datetime(df["date_arrivee"], dayfirst=True, errors="coerce")
+    df["date_depart"] = pd.to_datetime(df["date_depart"], dayfirst=True, errors="coerce")
+
+    st.dataframe(df[["nom_client", "date_arrivee", "date_depart", "plateforme"]])
+
+
+# ========================
+# STATISTIQUES
+# ========================
+
+def afficher_statistiques(slug: str):
+    st.subheader("📈 Statistiques")
+    df = load_reservations(slug)
+
+    if df.empty:
+        st.info("Aucune donnée.")
+        return
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Réservations", len(df))
+    col2.metric("Nuitées", int(df["nuitees"].sum()))
+    col3.metric("CA brut", f"{df['prix_brut'].sum():.0f} €")
+
+    fig = px.pie(df, names="plateforme", values="prix_brut")
+    st.plotly_chart(fig, use_container_width=True)
+
+
+# ========================
+# ANALYSE FINANCIÈRE
+# ========================
+
+def afficher_analyse_financiere(slug: str):
+    st.subheader("💼 Analyse financière")
+
+    df = load_reservations(slug)
+    if df.empty:
+        st.info("Aucune donnée.")
+        return
+
+    df["date_arrivee"] = pd.to_datetime(df["date_arrivee"], dayfirst=True, errors="coerce")
+    df["annee"] = df["date_arrivee"].dt.year
+
+    kpi = df.groupby("annee").agg(
+        nuitees=("nuitees", "sum"),
+        ca_brut=("prix_brut", "sum"),
+        ca_net=("prix_net", "sum"),
+    ).reset_index()
+
+    st.dataframe(kpi)
+
+    fig = px.bar(
+        kpi,
+        x="annee",
+        y=["ca_brut", "ca_net"],
+        barmode="group",
+        title="CA par année"
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
+    buffer = BytesIO()
+    kpi.to_excel(buffer, index=False)
+
+    st.download_button(
+        "Télécharger analyse Excel",
+        buffer.getvalue(),
+        "analyse_financiere.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
