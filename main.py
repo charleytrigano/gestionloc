@@ -1,18 +1,12 @@
 import streamlit as st
-
-from utils.style import apply_style
-from utils.auth import (
-    load_apartments,
-    gestion_appartements_ui
-)
-
 from utils.reservations import (
+    load_reservations,
     afficher_reservations,
     ajouter_reservation_ui,
     modifier_reservation_ui,
     afficher_calendrier_google,
     afficher_statistiques,
-    afficher_analyse_financiere
+    afficher_analyse_financiere,
 )
 
 # ========================
@@ -24,34 +18,31 @@ st.set_page_config(
     layout="wide"
 )
 
-apply_style()
+st.title("🏠 GestionLoc")
 
 # ========================
-# TITRE
+# CHOIX APPARTEMENT
 # ========================
 
-st.markdown("# 🏠 GestionLoc")
-st.markdown("### Liste des appartements disponibles :")
+st.subheader("Liste des appartements disponibles")
 
-# ========================
-# APPARTEMENTS
-# ========================
+# 👉 ici on liste les CSV présents dans /data
+import os
 
-df_apts = load_apartments()
+DATA_DIR = "data"
+slugs = []
 
-if df_apts.empty:
-    st.warning("Aucun appartement trouvé.")
-    st.info("👉 Créez votre premier appartement ci-dessous.")
-    gestion_appartements_ui()
+if os.path.exists(DATA_DIR):
+    for f in os.listdir(DATA_DIR):
+        if f.startswith("reservations_") and f.endswith(".csv"):
+            slugs.append(f.replace("reservations_", "").replace(".csv", ""))
+
+if not slugs:
+    st.warning("Aucun appartement trouvé (aucun fichier reservations_*.csv)")
     st.stop()
 
-slugs = df_apts["slug"].tolist()
-apt_dict = df_apts.set_index("slug")["nom"].to_dict()
-
 slug = st.selectbox("Choisissez un appartement", slugs)
-apt_nom = apt_dict.get(slug, slug)
-
-st.markdown(f"**Appartement sélectionné :** `{apt_nom}`")
+st.markdown(f"**Appartement sélectionné :** `{slug}`")
 
 # ========================
 # NAVIGATION
@@ -66,12 +57,11 @@ onglet = st.sidebar.radio(
         "📅 Calendrier",
         "📈 Statistiques",
         "💼 Analyse Financière",
-        "🏢 Appartements"
     ]
 )
 
 # ========================
-# CONTENU
+# AFFICHAGE
 # ========================
 
 if onglet == "📋 Réservations":
@@ -91,6 +81,3 @@ elif onglet == "📈 Statistiques":
 
 elif onglet == "💼 Analyse Financière":
     afficher_analyse_financiere(slug)
-
-elif onglet == "🏢 Appartements":
-    gestion_appartements_ui()
