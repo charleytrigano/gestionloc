@@ -5,6 +5,8 @@ import plotly.express as px
 from datetime import datetime
 from io import BytesIO
 
+PLATEFORMES = ["Booking", "Airbnb", "Direct", "Autre"]
+
 # ========================
 # FICHIERS
 # ========================
@@ -15,22 +17,37 @@ def reservations_path(slug: str) -> str:
 
 def load_reservations(slug: str) -> pd.DataFrame:
     path = reservations_path(slug)
+
     if not os.path.exists(path):
         return pd.DataFrame()
 
     df = pd.read_csv(path)
 
-    # Sécurisation colonnes
-    for col in ["nom_client", "plateforme", "date_arrivee", "date_depart"]:
-        if col not in df.columns:
-            df[col] = ""
+    # Colonnes obligatoires (sécurisation)
+    defaults = {
+        "nom_client": "",
+        "plateforme": "Autre",
+        "date_arrivee": "",
+        "date_depart": "",
+        "nuitees": 0,
+        "prix_brut": 0.0,
+        "prix_net": 0.0,
+        "commissions": 0.0,
+        "paye": False,
+    }
 
-    for col in ["nuitees", "prix_brut", "prix_net", "commissions"]:
+    for col, default in defaults.items():
         if col not in df.columns:
-            df[col] = 0.0
+            df[col] = default
 
-    if "paye" not in df.columns:
-        df["paye"] = False
+    # Nettoyage plateforme
+    df["plateforme"] = (
+        df["plateforme"]
+        .astype(str)
+        .str.strip()
+        .str.capitalize()
+    )
+    df.loc[~df["plateforme"].isin(PLATEFORMES), "plateforme"] = "Autre"
 
     return df
 
@@ -64,7 +81,7 @@ def ajouter_reservation_ui(slug: str):
 
     with st.form("ajout_reservation"):
         nom = st.text_input("Nom client")
-        plateforme = st.selectbox("Plateforme", ["Booking", "Airbnb", "Direct", "Autre"])
+        plateforme = st.selectbox("Plateforme", PLATEFORMES)
         date_arrivee = st.date_input("Date d'arrivée")
         date_depart = st.date_input("Date de départ")
         prix_brut = st.number_input("Prix brut", min_value=0.0)
@@ -78,20 +95,17 @@ def ajouter_reservation_ui(slug: str):
 
         df = load_reservations(slug)
         df = pd.concat(
-            [
-                df,
-                pd.DataFrame([{
-                    "nom_client": nom,
-                    "plateforme": plateforme,
-                    "date_arrivee": date_arrivee.strftime("%d/%m/%Y"),
-                    "date_depart": date_depart.strftime("%d/%m/%Y"),
-                    "nuitees": nuitees,
-                    "prix_brut": prix_brut,
-                    "prix_net": prix_net,
-                    "commissions": prix_brut - prix_net,
-                    "paye": paye
-                }])
-            ],
+            [df, pd.DataFrame([{
+                "nom_client": nom,
+                "plateforme": plateforme,
+                "date_arrivee": date_arrivee.strftime("%d/%m/%Y"),
+                "date_depart": date_depart.strftime("%d/%m/%Y"),
+                "nuitees": nuitees,
+                "prix_brut": prix_brut,
+                "prix_net": prix_net,
+                "commissions": prix_brut - prix_net,
+                "paye": paye,
+            }])],
             ignore_index=True
         )
 
@@ -101,7 +115,7 @@ def ajouter_reservation_ui(slug: str):
 
 
 # ========================
-# MODIFIER / SUPPRIMER
+# MODIFIER / SUPPRIMER (FIX ICI)
 # ========================
 
 def modifier_reservation_ui(slug: str):
@@ -112,22 +126,25 @@ def modifier_reservation_ui(slug: str):
         st.info("Aucune réservation.")
         return
 
-    options = df.index.tolist()
-
     idx = st.selectbox(
         "Sélectionner une réservation",
-        options,
+        df.index,
         format_func=lambda i: f"{df.at[i, 'nom_client']} – {df.at[i, 'date_arrivee']}"
     )
 
     row = df.loc[idx]
 
-    with st.form("modifier"):
+    # 🔒 Sécurisation plateforme
+    plateforme_value = row["plateforme"]
+    if plateforme_value not in PLATEFORMES:
+        plateforme_value = "Autre"
+
+    with st.form("modifier_reservation"):
         nom = st.text_input("Nom", row["nom_client"])
         plateforme = st.selectbox(
             "Plateforme",
-            ["Booking", "Airbnb", "Direct", "Autre"],
-            index=["Booking", "Airbnb", "Direct", "Autre"].index(row["plateforme"])
+            PLATEFORMES,
+            index=PLATEFORMES.index(plateforme_value)
         )
         prix_brut = st.number_input("Prix brut", value=float(row["prix_brut"]))
         prix_net = st.number_input("Prix net", value=float(row["prix_net"]))
@@ -137,9 +154,10 @@ def modifier_reservation_ui(slug: str):
         delete_btn = st.form_submit_button("🗑️ Supprimer")
 
     if save_btn:
-        df.loc[idx, ["nom_client", "plateforme", "prix_brut", "prix_net", "paye"]] = [
-            nom, plateforme, prix_brut, prix_net, paye
-        ]
+        df.loc[idx, [
+            "nom_client", "plateforme", "prix_brut", "prix_net", "paye"
+        ]] = [nom, plateforme, prix_brut, prix_net, paye]
+
         save_reservations(slug, df)
         st.success("Réservation modifiée")
         st.rerun()
@@ -152,7 +170,7 @@ def modifier_reservation_ui(slug: str):
 
 
 # ========================
-# CALENDRIER (simple)
+# CALENDRIER
 # ========================
 
 def afficher_calendrier_google(slug: str):
@@ -226,7 +244,7 @@ def afficher_analyse_financiere(slug: str):
     kpi.to_excel(buffer, index=False)
 
     st.download_button(
-        "Télécharger analyse Excel",
+        "📥 Télécharger analyse Excel",
         buffer.getvalue(),
         "analyse_financiere.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
