@@ -1,3 +1,8 @@
+
+
+
+
+
 import streamlit as st
 from utils.style import apply_style
 from utils.auth import load_apartments
@@ -8,6 +13,8 @@ from utils.reservations import (
     modifier_reservation_ui,
     afficher_calendrier_google,
     afficher_statistiques
+from utils.auth import gestion_appartements_ui
+
 )
 from analyse import afficher_analyse_financiere
 
@@ -55,6 +62,10 @@ elif onglet == "📈 Statistiques":
 
 elif onglet == "💹 Analyse financière":
     afficher_analyse_financiere(slug)
+
+elif onglet == "🏢 Appartements":
+    gestion_appartements_ui()
+
 
 from utils.auth import gestion_appartements_ui  # importer la nouvelle fonction
 
