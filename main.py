@@ -56,3 +56,35 @@ elif onglet == "📈 Statistiques":
 elif onglet == "💹 Analyse financière":
     afficher_analyse_financiere(slug)
 
+from utils.auth import gestion_appartements_ui  # importer la nouvelle fonction
+
+# Onglet Navigation
+onglet = st.sidebar.radio("Navigation", [
+    "📋 Réservations",
+    "➕ Ajouter",
+    "✏️ Modifier / Supprimer",
+    "📅 Calendrier",
+    "📈 Statistiques",
+    "🏢 Appartements"  # <== nouveau
+])
+
+# Affichage des pages
+if onglet == "📋 Réservations":
+    afficher_reservations(slug)
+
+elif onglet == "➕ Ajouter":
+    ajouter_reservation_ui(slug)
+
+elif onglet == "✏️ Modifier / Supprimer":
+    modifier_reservation_ui(slug)
+
+elif onglet == "📅 Calendrier":
+    afficher_calendrier_google(slug)
+
+elif onglet == "📈 Statistiques":
+    afficher_analyse_financiere(slug)  # ou afficher_statistiques(slug)
+
+elif onglet == "🏢 Appartements":
+    gestion_appartements_ui()
+
+
